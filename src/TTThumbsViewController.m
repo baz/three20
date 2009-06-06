@@ -237,6 +237,7 @@ static CGFloat kThumbnailRowHeight = 79;
   self.tableView.contentInset = UIEdgeInsetsMake(4, 0, 0, 0);
   self.tableView.clipsToBounds = NO;
   [innerView addSubview:self.tableView];
+  [innerView release];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
