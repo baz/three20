@@ -87,31 +87,9 @@ static TTURLRequestQueue* gMainQueue = nil;
   TTLOG(@"Connecting to %@", _url);
   TTNetworkRequestStarted();
 
-  NSMutableURLRequest *urlRequest = [NSMutableURLRequest requestWithURL:url
-                                    cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                    timeoutInterval:kTimeout];
-  [urlRequest setValue:_queue.userAgent forHTTPHeaderField:@"User-Agent"];
+  TTURLRequest* request = _requests.count == 1 ? [_requests objectAtIndex:0] : nil;
+  NSURLRequest *urlRequest = [_queue createNSURLRequest:request url:url];
 
-  if (_requests.count == 1) {
-    TTURLRequest* request = [_requests objectAtIndex:0];
-    [urlRequest setHTTPShouldHandleCookies:request.shouldHandleCookies];
-    
-    NSString* method = request.httpMethod;
-    if (method) {
-      [urlRequest setHTTPMethod:method];
-    }
-    
-    NSString* contentType = request.contentType;
-    if (contentType) {
-      [urlRequest setValue:contentType forHTTPHeaderField:@"Content-Type"];
-    }
-    
-    NSData* body = request.httpBody;
-    if (body) {
-      [urlRequest setHTTPBody:body];
-    }
-  }
-  
   _connection = [[NSURLConnection alloc] initWithRequest:urlRequest delegate:self];
 }
 
@@ -263,6 +241,7 @@ static TTURLRequestQueue* gMainQueue = nil;
     if (_connection) {
       TTNetworkRequestStopped();
       [_connection cancel];
+      [_connection release];
       _connection = nil;
     }
     return NO;
@@ -424,6 +403,8 @@ static TTURLRequestQueue* gMainQueue = nil;
                expires:loader.cacheExpirationAge
                fromDisk:loader.cachePolicy & TTURLRequestCachePolicyDisk
                data:&data error:&error timestamp:&timestamp]) {
+    [_loaders removeObjectForKey:loader.cacheKey];
+
     if (!error) {
       error = [loader processResponse:nil data:data];
     }
@@ -432,8 +413,6 @@ static TTURLRequestQueue* gMainQueue = nil;
     } else {
       [loader dispatchLoaded:timestamp];
     }
-    
-    [_loaders removeObjectForKey:loader.cacheKey];
   } else {
     ++_totalLoading;
     [loader load:[NSURL URLWithString:loader.url]];
@@ -465,14 +444,15 @@ static TTURLRequestQueue* gMainQueue = nil;
   }
 }
 
-- (void)loadNextInQueueAfterLoader:(TTRequestLoader*)loader {
+- (void)removeLoader:(TTRequestLoader*)loader {
   --_totalLoading;
   [_loaders removeObjectForKey:loader.cacheKey];
-  [self loadNextInQueue];
 }
 
 - (void)loader:(TTRequestLoader*)loader didLoadResponse:(NSHTTPURLResponse*)response
     data:(id)data {
+  [self removeLoader:loader];
+  
   NSError* error = [loader processResponse:response data:data];
   if (error) {
     [loader dispatchError:error];
@@ -483,17 +463,19 @@ static TTURLRequestQueue* gMainQueue = nil;
     [loader dispatchLoaded:[NSDate date]];
   }
 
-  [self loadNextInQueueAfterLoader:loader];
+  [self loadNextInQueue];
 }
 
 - (void)loader:(TTRequestLoader*)loader didFailLoadWithError:(NSError*)error {
+  [self removeLoader:loader];
   [loader dispatchError:error];
-  [self loadNextInQueueAfterLoader:loader];
+  [self loadNextInQueue];
 }
 
 - (void)loaderDidCancel:(TTRequestLoader*)loader wasLoading:(BOOL)wasLoading {
   if (wasLoading) {
-    [self loadNextInQueueAfterLoader:loader];
+    [self removeLoader:loader];
+    [self loadNextInQueue];
   } else {
     [_loaders removeObjectForKey:loader.cacheKey];
   }
@@ -609,6 +591,38 @@ static TTURLRequestQueue* gMainQueue = nil;
   for (TTRequestLoader* loader in [[[_loaders copy] autorelease] objectEnumerator]) {
     [loader cancel];
   }
+}
+
+- (NSURLRequest*)createNSURLRequest:(TTURLRequest*)request url:(NSURL*)url {
+  if (!url) {
+    url = [NSURL URLWithString:request.url];
+  }
+  
+  NSMutableURLRequest* urlRequest = [NSMutableURLRequest requestWithURL:url
+                                    cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                    timeoutInterval:kTimeout];
+  [urlRequest setValue:self.userAgent forHTTPHeaderField:@"User-Agent"];
+
+  if (request) {
+    [urlRequest setHTTPShouldHandleCookies:request.shouldHandleCookies];
+    
+    NSString* method = request.httpMethod;
+    if (method) {
+      [urlRequest setHTTPMethod:method];
+    }
+    
+    NSString* contentType = request.contentType;
+    if (contentType) {
+      [urlRequest setValue:contentType forHTTPHeaderField:@"Content-Type"];
+    }
+    
+    NSData* body = request.httpBody;
+    if (body) {
+      [urlRequest setHTTPBody:body];
+    }
+  }
+  
+  return urlRequest;
 }
 
 @end

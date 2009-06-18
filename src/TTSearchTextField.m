@@ -34,6 +34,10 @@ static const CGFloat kDesiredTableHeight = 150;
   return self;
 }
 
+- (void)dealloc {
+  [super dealloc];
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // UITextFieldDelegate
 
@@ -62,10 +66,6 @@ static const CGFloat kDesiredTableHeight = 150;
 - (void)textFieldDidEndEditing:(UITextField *)textField {
   if ([_delegate respondsToSelector:@selector(textFieldDidEndEditing:)]) {
     [_delegate textFieldDidEndEditing:textField];
-  }
-  
-  if (_textField.dataSource) {
-    textField.text = @"";
   }
 }
 
@@ -104,7 +104,7 @@ static const CGFloat kDesiredTableHeight = 150;
     if (!_textField.searchesAutomatically) {
       [_textField search];
     } else {
-      [_textField resignFirstResponder];
+      [_textField performSelector:@selector(doneAction)];
     }
   }
   return shouldReturn;
@@ -222,6 +222,7 @@ static const CGFloat kDesiredTableHeight = 150;
     [self search];
   }
 }
+
 - (void)dispatchUpdate:(NSTimer*)timer {
   _searchTimer = nil;
   [self autoSearch];
@@ -253,6 +254,10 @@ static const CGFloat kDesiredTableHeight = 150;
 
 - (void)doneAction {
   [self resignFirstResponder];
+
+  if (self.dataSource) {
+    self.text = @"";
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
