@@ -61,7 +61,7 @@
 }
 
 - (void)showBars:(BOOL)show animated:(BOOL)animated {
-  [[UIApplication sharedApplication] setStatusBarHidden:!show animated:animated];
+  [[UIApplication sharedApplication] setStatusBarHidden:NO animated:NO];
   
   [self showNavigationBar:show animated:animated];
 }
